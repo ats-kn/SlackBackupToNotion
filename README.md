@@ -1,2 +1,2 @@
 # Backup_SlackToNotion
-Slackの投稿をNotionのDBに格納するシステム
+Slackの投稿をNotionのDBに格納するPythonスクリプト
