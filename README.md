@@ -5,6 +5,9 @@ Slackの投稿をNotionのDBに格納するPythonスクリプト
 
 ## install
 ターミナルで以下のライブラリをインストールする
+
 pip install slack-sdk
+
 pip install requests
+
 pip install datetime
