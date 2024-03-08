@@ -4,14 +4,8 @@ from slack_sdk.errors import SlackApiError
 import requests
 import json
 from datetime import datetime, timezone
+from api_key import NOTION_API_TOKEN, NOTION_DATABASE_ID, SLACK_API_TOKEN, SLACK_CHANNEL_ID
 
-# SlackのAPIトークンとチャンネルID
-SLACK_API_TOKEN = "xoxb-6724847132404-6774207657345-TfiNiey12O9Ssn1yZjF2fcne"
-SLACK_CHANNEL_ID = "C06NAMNUDSR"
-
-# NotionのIntegrationトークンとデータベースID
-NOTION_API_TOKEN = "secret_lkjHU975pUPbbnk1wrJrk2J1uiPGel2nK0oSDNyCkTJ"
-NOTION_DATABASE_ID = "b963d1ba0ef6409bb4bd53c4f5d6c61f"
 
 # Slackクライアントの初期化
 slack_client = WebClient(token=SLACK_API_TOKEN)
@@ -21,22 +15,22 @@ def get_slack_messages():
     try:
         result = slack_client.conversations_history(channel=SLACK_CHANNEL_ID)
         messages = result["messages"]
-        # メッセージのテキスト、投稿日時、投稿者の情報を含む辞書のリストを作成
-        texts = [item['text'] for item in messages]
-        timestamps = [item['ts'] for item in messages]
-        users = [item['user'] for item in messages]
-        return texts, timestamps, users
+        print(messages)
+        # 'client_msg_id'がNoneじゃないときメッセージのテキスト、投稿日時、投稿者の情報、IDを含む辞書のリストを作成
+        texts = [message["text"] for message in messages if message.get("client_msg_id") is not None]
+        timestamps = [message["ts"] for message in messages if message.get("client_msg_id") is not None]
+        users = [message["user"] for message in messages if message.get("client_msg_id") is not None]
+        ids = [message["client_msg_id"] for message in messages if message.get("client_msg_id") is not None]
+        
+        return texts, timestamps, users, ids
     except SlackApiError as e:
         print(f"Error fetching Slack messages: {e.response['error']}")
 
-    
-
-# UNIXタイムスタンプをISO 8601形式に変換する関数
+# タイムスタンプをISO 8601形式の日付文字列に変換する関数
 def convert_to_iso8601(timestamp):
-    # UNIXタイムスタンプをdatetimeオブジェクトに変換
-    dt_object = datetime.utcfromtimestamp(float(timestamp))
-    # UTC時刻を表すために'Z'を付ける
-    return dt_object.isoformat() + 'Z'
+    date_time = datetime.fromtimestamp(float(timestamp), timezone.utc)  # UTCに変換
+    iso_date_time = date_time.isoformat(timespec='seconds')  # マイクロ秒を除外
+    return iso_date_time
 
 # NotionAPIにリクエストする用のheaderを設定
 headers = {
@@ -45,28 +39,42 @@ headers = {
     "Notion-Version": "2022-06-28"
 }
 
-# Notionに新しいページを作成する関数
-def create_notion_page(texts, timestamps, users):
+def get_all_pages():
+    url = f"https://api.notion.com/v1/databases/{NOTION_DATABASE_ID}/query"
+    response = requests.post(url, headers=headers)
+    if response.status_code != 200:
+        print(f"Error getting Notion pages: {response.content}")
+        return []
+    return response.json().get('results', [])
+
+def create_notion_page(texts, timestamps, users, ids):
     url = f"https://api.notion.com/v1/pages"
-    for text, timestamp, user in zip(texts, timestamps, users):
-        # UNIXタイムスタンプをISO 8601形式に変換
-        dt_object = datetime.fromtimestamp(float(timestamp), timezone.utc)
-        data = {
-            "parent": {"database_id": NOTION_DATABASE_ID},
-            "properties": {
-                "Message": {"title": [{"text": {"content": text}}]},
-                "Date": {"date": {"start": dt_object.isoformat()}},
-                "User": {"rich_text": [{"text": {"content": user}}]}
-            }
-        }
-        response = requests.post(url, headers=headers, data=json.dumps(data))
-        if response.status_code != 200:
-            print(f"Error creating Notion page: {response.content}")
+    all_pages = get_all_pages()
+    
+    for text, timestamp, user, id in zip(texts, timestamps, users, ids, ):
+        # 既存のページに同じMessage_IDがある場合はNotionにページを作成しない
+        if any(page['properties']['Message_ID']['title'][0]['text']['content'] == id for page in all_pages):
+            print(f"Page with Message_ID {id} already exists in Notion")
+        else:
+            iso_timestamp = convert_to_iso8601(timestamp)
+            data = {
+                "parent": {"database_id": NOTION_DATABASE_ID},
+                "properties": {
+                    "Message": {"rich_text": [{"text": {"content": text}}]},
+                    "Date": {"date": {"start": iso_timestamp}},
+                    "User": {"rich_text": [{"text": {"content": user}}]},                    
+                    "Message_ID": {"title": [{"text": {"content": id}}]}
+                }
+             }
+        
+            response = requests.post(url, headers=headers, data=json.dumps(data))
+            if response.status_code != 200:
+                print(f"Error creating Notion page: {response.content}")
 
 # メインの処理
 def main():
-    texts, timestamps, users = get_slack_messages()
-    create_notion_page(texts, timestamps, users)
+    texts, timestamps, users, ids = get_slack_messages()
+    create_notion_page(texts, timestamps, users, ids)
 
 # スクリプトの実行
 if __name__ == "__main__":
