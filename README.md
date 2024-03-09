@@ -1,5 +1,8 @@
 # Backup_SlackToNotionについて
-Slackの投稿をNotionのDBに格納するPythonスクリプト
+Slackのチャンネル投稿をNotionのDBに格納するPythonスクリプト
+
+現状、一つのチャンネルしかNotionに送信できない
+今後、全てのチャンネルの投稿を取得してNotionに送れるようにする
 
 ※現在はメッセージしか送れません、画像や動画は今後追加する
 
