@@ -15,7 +15,7 @@ def get_slack_messages():
     try:
         result = slack_client.conversations_history(channel=SLACK_CHANNEL_ID)
         messages = result["messages"]
-        # 'client_msg_id'がNoneじゃないときメッセージのテキスト、投稿日時、投稿者の情報、IDを含む辞書のリストを作成
+        # 'client_msg_id'がNoneじゃないときメッセージのテキスト、投稿日時、投稿者の情報、ID、URLを含む辞書のリストを作成
         texts = [message["text"] for message in messages if message.get("client_msg_id") is not None]
         timestamps = [message["ts"] for message in messages if message.get("client_msg_id") is not None]
         users = [message["user"] for message in messages if message.get("client_msg_id") is not None]
@@ -51,7 +51,7 @@ def get_user_info(user_id):
     try:
         response = slack_client.users_info(user=user_id)
         if response['ok']:
-            return response['user']['real_name']  # 'name' or 'real_name' could be used
+            return response['user']['real_name']
         else:
             print(f"Failed to fetch user info: {response['error']}")
     except SlackApiError as e:
@@ -74,7 +74,7 @@ def create_notion_page(texts, timestamps, users, ids, urls):
                     "Date": {"date": {"start": iso_timestamp}},
                     "User": {"rich_text": [{"text": {"content": user}}]},                    
                     "Message_ID": {"title": [{"text": {"content": id}}]},
-                    # urlの中身が""じゃない場合のみURLをNotionに追加"
+                    # urlの中身がNoneじゃない場合のみURLをNotionに追加"
                     "URL": {"url": url_list or None}
                 }
             }
