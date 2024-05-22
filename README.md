@@ -19,3 +19,5 @@ pip install datetime
 
 ## Setting
 Slack、Notionのトークンを取得する必要あり
+
+Notionのコネクトに接続する必要あり
